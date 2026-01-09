@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 
 	pty "github.com/threatexpert/go-winpty"
 )
@@ -29,9 +30,12 @@ func handleConn(conn net.Conn) {
 	log.Printf("[%s] started cmd.exe (PID=%d)", conn.RemoteAddr(), cmd.Process.Pid)
 
 	// 双向转发：客户端 ↔ cmd.exe
-	done := make(chan struct{}, 2)
+	done := make(chan struct{}, 3)
+	var wg sync.WaitGroup
+	wg.Add(3)
 
 	go func() {
+		defer wg.Done()
 		defer func() { done <- struct{}{} }()
 		_, err := io.Copy(pt, conn) // 客户端输入 → cmd
 		if err != nil {
@@ -40,6 +44,7 @@ func handleConn(conn net.Conn) {
 	}()
 
 	go func() {
+		defer wg.Done()
 		defer func() { done <- struct{}{} }()
 		_, err := io.Copy(conn, pt) // cmd 输出 → 客户端
 		type closeWriter interface {
@@ -54,6 +59,7 @@ func handleConn(conn net.Conn) {
 	}()
 
 	go func() {
+		defer wg.Done()
 		defer func() { done <- struct{}{} }()
 		cmd.Wait()
 	}()
@@ -66,7 +72,7 @@ func handleConn(conn net.Conn) {
 	// 杀掉 cmd.exe
 	_ = cmd.Process.Kill()
 	_ = cmd.Wait()
-
+	wg.Wait()
 	log.Printf("[%s] session closed", conn.RemoteAddr())
 }
 
