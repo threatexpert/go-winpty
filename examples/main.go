@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"io"
 	"log"
 	"net"
@@ -70,12 +71,18 @@ func handleConn(conn net.Conn) {
 }
 
 func main() {
-	addr := ":2222"
-	ln, err := net.Listen("tcp", addr)
+	// --- 1. 定义并解析命令行参数 ---
+	// 默认值设为 127.0.0.1:2222
+	listenAddr := flag.String("addr", "127.0.0.1:2222", "Listen address")
+	flag.Parse()
+
+	// --- 2. 使用解析后的地址 ---
+	ln, err := net.Listen("tcp", *listenAddr)
 	if err != nil {
-		log.Fatalf("failed to listen on %s: %v", addr, err)
+		log.Fatalf("failed to listen on %s: %v", *listenAddr, err)
 	}
-	log.Printf("listening on %s ...", addr)
+
+	log.Printf("listening on %s ... (Press Ctrl+C to stop)", *listenAddr)
 
 	for {
 		conn, err := ln.Accept()
@@ -84,7 +91,6 @@ func main() {
 			continue
 		}
 		log.Printf("new connection from %s", conn.RemoteAddr())
-
 		go handleConn(conn)
 	}
 }
